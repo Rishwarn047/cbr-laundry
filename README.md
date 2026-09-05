@@ -10,9 +10,15 @@ Functions + D1, no build step, no Node.js required locally.
 - `dashboard.html` — mobile dashboard for the laundry manager: shows active
   (**Pending**) requests, urgent ones pinned to the top, with a **Mark Done**
   button (timestamped) plus a secondary tab for what's done but not yet
-  collected. Not linked from the public page — bookmark it directly.
+  collected. Not linked from the public page — bookmark it directly. Gated
+  behind Google sign-in (see below).
+- `login.html` / `functions/_auth.js` / `functions/_middleware.js` — Google
+  Sign-In (ID token flow) + HMAC-signed session cookie, same pattern as the
+  Print Request Dashboard project. Only `/dashboard.html` is gated; everything
+  else (the public form, Track & Collect, and the request/submit APIs) stays
+  open with no login.
 - `functions/api/` — Cloudflare Pages Functions backed by D1 (`requests`
-  table). No secrets involved, so no environment variables to configure.
+  table).
 
 Status flow: `Pending → Done → Collected`.
 
@@ -56,19 +62,32 @@ then run it. That creates the `requests` table.
 Apply to both Production and Preview, then **redeploy** (bindings only take
 effect on the next deployment).
 
+### 5. Configure Google sign-in for the dashboard
+
+Add these under **Pages project → Settings → Variables and secrets**, for
+**both Production and Preview**:
+
+- `GOOGLE_CLIENT_ID` (Text) — reuses the Print Request Dashboard's OAuth
+  client: `594694980525-h761vjq5cebvme1a6trb646s4q4ireqc.apps.googleusercontent.com`.
+  That client's **Authorized JavaScript origins** (Google Cloud Console →
+  APIs & Services → Credentials) must also list
+  `https://cbr-laundry.pages.dev`, or the Google Sign-In button will fail —
+  otherwise create your own OAuth client and use that ID instead.
+- `ALLOWED_EMAILS` (Text) — comma-separated list of emails allowed into the
+  dashboard, e.g. `rishwan108@gmail.com`.
+- `SESSION_SECRET` (Secret) — any long random string, used to sign the
+  session cookie.
+
+Redeploy after adding these (env vars only apply to the next deployment).
+
 ## Using it
 
 - Share the root URL (`https://cbr-laundry.pages.dev/`) with villa staff for
   submitting and collecting requests.
 - Give the laundry manager `https://cbr-laundry.pages.dev/dashboard.html`
   directly (e.g. as a home-screen shortcut on their phone) — it isn't linked
-  from the public page.
-
-There's no login on either page in this version — anyone with the dashboard
-link can mark requests Done. If you want it restricted to specific staff,
-Cloudflare Access (**Zero Trust → Access → Applications**, free for up to 50
-users) can gate `dashboard.html` by email the same way it's used in the
-Print Request Dashboard project.
+  from the public page. Visiting it while signed out redirects to
+  `login.html`; only emails listed in `ALLOWED_EMAILS` can get in.
 
 ## Going forward
 

@@ -37,6 +37,18 @@
   }
   header h1 { margin: 0; font-size: 18px; font-weight: 700; }
   header p { margin: 4px 0 0; font-size: 12px; opacity: 0.9; }
+  .logout-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(255,255,255,0.15);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
 
   .tabs {
     display: flex;
@@ -114,6 +126,7 @@
 <body>
 
 <header>
+  <button class="logout-btn" id="logout-btn">Log out</button>
   <h1>Laundry Manager</h1>
   <p>CBR Laundry Service — internal dashboard</p>
 </header>
@@ -241,6 +254,11 @@ async function loadAll() {
 
 loadAll();
 setInterval(loadAll, 15000);
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/login.html';
+});
 </script>
 
 </body>

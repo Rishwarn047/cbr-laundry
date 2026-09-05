@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sign in · CBR Laundry Service</title>
+<style>
+  :root {
+    --teal: #0f766e;
+    --teal-dark: #0b5b55;
+    --surface: #ffffff;
+    --page-plane: #f8fafc;
+    --text-primary: #0f172a;
+    --text-secondary: #52514e;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --red: #dc2626;
+    --shadow: rgba(15, 23, 42, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body {
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: var(--page-plane);
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 48px 40px; max-width: 400px; width: 100%;
+    text-align: center;
+    box-shadow: 0 24px 60px -20px var(--shadow);
+  }
+  .mark {
+    width: 56px; height: 56px; margin: 0 auto 12px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--teal);
+  }
+  .mark svg { width: 48px; height: 48px; }
+  .card h1 { font-size: 21px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .card .sub { color: var(--text-secondary); font-size: 14px; margin-bottom: 28px; line-height: 1.5; }
+  #gsiButton { display: flex; justify-content: center; min-height: 48px; }
+  .remember {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 20px; font-size: 13.5px; color: var(--text-secondary);
+    user-select: none; cursor: pointer;
+  }
+  .remember input { width: 15px; height: 15px; accent-color: var(--teal); cursor: pointer; }
+  .error {
+    display: none; margin-top: 18px; padding: 11px 14px; border-radius: 9px;
+    background: #fee2e2;
+    color: var(--red); font-size: 13px;
+  }
+  .error.show { display: block; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M6 7v13a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7M9 3h6l1 4H8l1-4Z"/><circle cx="12" cy="14" r="3.2"/></svg>
+    </div>
+    <h1>Laundry Manager</h1>
+    <div class="sub">Sign in with your Google account to manage laundry requests.</div>
+    <div id="gsiButton"></div>
+    <label class="remember">
+      <input type="checkbox" id="rememberMe" checked />
+      Keep me signed in
+    </label>
+    <div class="error" id="errorMsg"></div>
+  </div>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    const GOOGLE_CLIENT_ID = "594694980525-h761vjq5cebvme1a6trb646s4q4ireqc.apps.googleusercontent.com";
+
+    function showError(msg) {
+      const el = document.getElementById("errorMsg");
+      el.textContent = msg;
+      el.classList.add("show");
+    }
+
+    async function handleCredentialResponse(response) {
+      try {
+        const remember = document.getElementById("rememberMe").checked;
+        const res = await fetch("/api/auth/google", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credential: response.credential, remember })
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showError(data.error || "Sign-in failed. Please try again.");
+          return;
+        }
+        window.location.href = "/dashboard.html";
+      } catch {
+        showError("Sign-in failed. Please check your connection and try again.");
+      }
+    }
+
+    function renderGoogleButton() {
+      const container = document.getElementById("gsiButton");
+      container.innerHTML = "";
+      const width = Math.max(200, Math.min(400, container.offsetWidth));
+      google.accounts.id.renderButton(container, {
+        theme: "outline",
+        size: "large",
+        width
+      });
+    }
+
+    window.onload = function () {
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse
+      });
+      renderGoogleButton();
+
+      let resizeTimer;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(renderGoogleButton, 200);
+      });
+    };
+  </script>
+</body>
+</html>
