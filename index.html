@@ -195,8 +195,25 @@
   .req-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
   .req-villa { font-size: 16px; font-weight: 700; }
   .req-staff { font-size: 13px; color: var(--muted); margin-top: 2px; }
-  .req-notes { font-size: 13px; color: var(--text); margin-top: 6px; }
-  .req-time { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .req-notes {
+    font-size: 13px;
+    color: var(--text);
+    margin-top: 10px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border-left: 3px solid var(--border);
+    border-radius: 6px;
+    font-style: italic;
+  }
+  .req-time {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .req-time svg { width: 12px; height: 12px; flex-shrink: 0; opacity: 0.8; }
 
   .badge {
     font-size: 11px;
@@ -354,6 +371,10 @@ function fmtTime(iso) {
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+function timeLine(text) {
+  return `<div class="req-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>${text}</span></div>`;
+}
+
 function statusBadge(status) {
   const cls = status.toLowerCase();
   return `<span class="badge ${cls}">${status}</span>`;
@@ -375,12 +396,12 @@ function renderResults(records) {
         ${statusBadge(r.status)}
       </div>
       ${r.notes ? `<div class="req-notes">${escapeHtml(r.notes)}</div>` : ''}
-      <div class="req-time">Submitted ${fmtTime(r.createdAt)}</div>
+      ${timeLine('Submitted ' + fmtTime(r.createdAt))}
     `;
 
     if (r.status === 'Done') {
       body += `
-        <div class="req-time">Ready since ${fmtTime(r.doneAt)}</div>
+        ${timeLine('Ready since ' + fmtTime(r.doneAt))}
         <div class="collect-form" data-id="${r.id}">
           <label style="margin-top:0;">Staff Name</label>
           <input type="text" class="collector-name" placeholder="Who is collecting?">
@@ -391,7 +412,7 @@ function renderResults(records) {
         </div>
       `;
     } else if (r.status === 'Collected') {
-      body += `<div class="req-time">Collected by ${escapeHtml(r.collectedBy || '')} on ${fmtTime(r.collectedAt)}</div>`;
+      body += timeLine('Collected by ' + escapeHtml(r.collectedBy || '') + ' on ' + fmtTime(r.collectedAt));
       if (r.collectedNotes) body += `<div class="req-notes">${escapeHtml(r.collectedNotes)}</div>`;
     }
 

@@ -48,6 +48,24 @@
     padding: 6px 12px;
     font-size: 12px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .logout-icon { width: 14px; height: 14px; flex-shrink: 0; }
+
+  @media (max-width: 480px) {
+    header { padding: 12px; }
+    header h1 { font-size: 15px; }
+    header p { font-size: 11px; }
+    .logout-btn {
+      top: 10px;
+      right: 10px;
+      padding: 7px;
+      border-radius: 50%;
+    }
+    .logout-text { display: none; }
+    .tabs { top: 52px; }
   }
 
   .tabs {
@@ -211,7 +229,10 @@
 <body>
 
 <header>
-  <button class="logout-btn" id="logout-btn">Log out</button>
+  <button class="logout-btn" id="logout-btn" aria-label="Log out">
+    <svg class="logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    <span class="logout-text">Log out</span>
+  </button>
   <h1>Laundry Requests Dashboard</h1>
   <p>CBR Laundry Service</p>
 </header>
