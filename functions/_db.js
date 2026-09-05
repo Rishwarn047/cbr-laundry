@@ -72,6 +72,16 @@ export async function markDone(env, id) {
   return { record: await getRequest(env, id) };
 }
 
+export async function markPending(env, id) {
+  const row = await env.DB.prepare(`SELECT status FROM requests WHERE id = ?`).bind(id).first();
+  if (!row) return { error: "not_found" };
+  if (row.status !== "Done") return { error: "invalid_state" };
+
+  await env.DB.prepare(`UPDATE requests SET status = 'Pending', done_at = NULL WHERE id = ?`)
+    .bind(id).run();
+  return { record: await getRequest(env, id) };
+}
+
 export async function markCollected(env, id, { collectedBy, collectedNotes }) {
   const row = await env.DB.prepare(`SELECT status FROM requests WHERE id = ?`).bind(id).first();
   if (!row) return { error: "not_found" };

@@ -132,6 +132,21 @@
   }
   .collect-form textarea { resize: vertical; min-height: 60px; }
 
+  .awaiting-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .awaiting-actions button { flex: 1; margin-top: 0; }
+
+  button.undone-btn {
+    padding: 11px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button.undone-btn:disabled { opacity: 0.6; }
+
   button.collect-toggle-btn {
     width: 100%;
     margin-top: 12px;
@@ -272,7 +287,10 @@ function renderAwaiting(records) {
       </div>
       ${r.notes ? `<div class="req-notes">${escapeHtml(r.notes)}</div>` : ''}
       <div class="req-time">Ready since ${fmtTime(r.doneAt)}</div>
-      <button class="collect-toggle-btn">Mark as Collected</button>
+      <div class="awaiting-actions">
+        <button class="undone-btn">Move to Pending</button>
+        <button class="collect-toggle-btn">Mark as Collected</button>
+      </div>
       <div class="collect-form" hidden>
         <label>Staff Name</label>
         <input type="text" class="collector-name" autocomplete="off">
@@ -286,10 +304,29 @@ function renderAwaiting(records) {
 
   panel.querySelectorAll('.collect-toggle-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const form = btn.nextElementSibling;
+      const form = btn.closest('.req-item').querySelector('.collect-form');
       const opening = form.hidden;
       form.hidden = !opening;
       btn.textContent = opening ? 'Cancel' : 'Mark as Collected';
+    });
+  });
+
+  panel.querySelectorAll('.undone-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const item = btn.closest('.req-item');
+      const id = item.dataset.id;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      try {
+        const res = await fetch(`/api/requests/${id}/undone`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not update request');
+        await loadAll();
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+        btn.textContent = 'Move to Pending';
+      }
     });
   });
 
