@@ -119,6 +119,48 @@
   }
   button.done-btn:disabled { opacity: 0.6; }
 
+  .collect-form { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px; }
+  .collect-form label { display: block; font-size: 12px; font-weight: 600; margin: 0 0 4px; color: var(--text); }
+  .collect-form input[type="text"], .collect-form textarea {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+    margin-bottom: 8px;
+  }
+  .collect-form textarea { resize: vertical; min-height: 60px; }
+
+  button.collect-toggle-btn {
+    width: 100%;
+    margin-top: 12px;
+    padding: 11px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--teal);
+    background: white;
+    border: 1.5px solid var(--teal);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button.collect-confirm-btn {
+    width: 100%;
+    padding: 11px;
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+    background: var(--teal);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button.collect-confirm-btn:disabled { opacity: 0.6; }
+
+  .msg { margin-top: 8px; font-size: 12px; padding: 8px 10px; border-radius: 6px; display: none; }
+  .msg.show { display: block; }
+  .msg.error { background: #fee2e2; color: var(--red); }
+
   .empty { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 0; }
   .refresh-note { text-align: center; font-size: 11px; color: var(--muted); padding: 8px 0 16px; }
 </style>
@@ -220,7 +262,7 @@ function renderAwaiting(records) {
   }
 
   panel.innerHTML = records.map(r => `
-    <div class="req-item">
+    <div class="req-item" data-id="${r.id}">
       <div class="req-top">
         <div>
           <div class="req-villa">Villa ${r.villaNumber}</div>
@@ -230,8 +272,60 @@ function renderAwaiting(records) {
       </div>
       ${r.notes ? `<div class="req-notes">${escapeHtml(r.notes)}</div>` : ''}
       <div class="req-time">Ready since ${fmtTime(r.doneAt)}</div>
+      <button class="collect-toggle-btn">Mark as Collected</button>
+      <div class="collect-form" hidden>
+        <label>Staff Name</label>
+        <input type="text" class="collector-name" autocomplete="off">
+        <label>Notes (optional)</label>
+        <textarea class="collector-notes"></textarea>
+        <button class="collect-confirm-btn">Confirm Collected</button>
+        <div class="msg collect-msg"></div>
+      </div>
     </div>
   `).join('');
+
+  panel.querySelectorAll('.collect-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const form = btn.nextElementSibling;
+      const opening = form.hidden;
+      form.hidden = !opening;
+      btn.textContent = opening ? 'Cancel' : 'Mark as Collected';
+    });
+  });
+
+  panel.querySelectorAll('.collect-confirm-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const item = btn.closest('.req-item');
+      const id = item.dataset.id;
+      const collectedBy = item.querySelector('.collector-name').value.trim();
+      const collectedNotes = item.querySelector('.collector-notes').value.trim();
+      const msgEl = item.querySelector('.collect-msg');
+
+      if (!collectedBy) {
+        msgEl.textContent = 'Please enter the staff name.';
+        msgEl.className = 'msg show error';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      try {
+        const res = await fetch(`/api/requests/${id}/collect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collectedBy, collectedNotes })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not update request');
+        await loadAll();
+      } catch (err) {
+        msgEl.textContent = err.message;
+        msgEl.className = 'msg show error';
+        btn.disabled = false;
+        btn.textContent = 'Confirm Collected';
+      }
+    });
+  });
 }
 
 function renderCollected(records) {
@@ -278,7 +372,9 @@ async function loadAll() {
     if (!collectedRes.ok) throw new Error(collectedData.error || 'Failed to load');
 
     renderPending(pendingData.records);
-    renderAwaiting(doneData.records);
+    if (!document.querySelector('#panel-awaiting .collect-form:not([hidden])')) {
+      renderAwaiting(doneData.records);
+    }
     renderCollected(collectedData.records);
     document.getElementById('refresh-note').textContent =
       'Last updated ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' });

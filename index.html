@@ -382,7 +382,7 @@ function renderResults(records) {
       body += `
         <div class="req-time">Ready since ${fmtTime(r.doneAt)}</div>
         <div class="collect-form" data-id="${r.id}">
-          <label style="margin-top:0;">Collector Name</label>
+          <label style="margin-top:0;">Staff Name</label>
           <input type="text" class="collector-name" placeholder="Who is collecting?">
           <label>Notes (optional)</label>
           <textarea class="collector-notes" placeholder="Anything to note about the collection"></textarea>
@@ -407,7 +407,7 @@ function renderResults(records) {
       const msgEl = wrap.querySelector('.collect-msg');
 
       if (!collectedBy) {
-        showMsg(msgEl, 'Please enter the collector name.', 'error');
+        showMsg(msgEl, 'Please enter the staff name.', 'error');
         return;
       }
 
