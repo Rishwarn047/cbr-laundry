@@ -1,9 +1,7 @@
 import { insertRequest } from "../_db.js";
 
-const EXCLUDED_VILLAS = new Set([13, 48, 49]);
-
 function isValidVilla(n) {
-  return Number.isInteger(n) && n >= 1 && n <= 50 && !EXCLUDED_VILLAS.has(n);
+  return Number.isInteger(n) && n >= 1 && n <= 99;
 }
 
 export async function onRequestPost({ request, env }) {

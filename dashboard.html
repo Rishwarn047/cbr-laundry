@@ -128,17 +128,19 @@
 <header>
   <button class="logout-btn" id="logout-btn">Log out</button>
   <h1>Laundry Manager</h1>
-  <p>CBR Laundry Service — internal dashboard</p>
+  <p>CBR Laundry Service — Internal Dashboard</p>
 </header>
 
 <div class="tabs">
   <button class="tab-btn active" data-tab="active">Active <span class="count" id="active-count">0</span></button>
-  <button class="tab-btn" data-tab="awaiting">Awaiting Collection <span class="count" id="awaiting-count">0</span></button>
+  <button class="tab-btn" data-tab="awaiting">Awaiting <span class="count" id="awaiting-count">0</span></button>
+  <button class="tab-btn" data-tab="collected">Collected <span class="count" id="collected-count">0</span></button>
 </div>
 
 <main>
   <section id="panel-active" class="panel active"></section>
   <section id="panel-awaiting" class="panel"></section>
+  <section id="panel-collected" class="panel"></section>
   <div class="refresh-note" id="refresh-note">Refreshing...</div>
 </main>
 
@@ -232,19 +234,52 @@ function renderAwaiting(records) {
   `).join('');
 }
 
+function renderCollected(records) {
+  const panel = document.getElementById('panel-collected');
+  document.getElementById('collected-count').textContent = records.length;
+
+  if (!records.length) {
+    panel.innerHTML = '<div class="empty">No collected requests yet.</div>';
+    return;
+  }
+
+  const sorted = [...records].sort((a, b) => new Date(b.collectedAt) - new Date(a.collectedAt));
+
+  panel.innerHTML = sorted.map(r => `
+    <div class="req-item">
+      <div class="req-top">
+        <div>
+          <div class="req-villa">Villa ${r.villaNumber}</div>
+          <div class="req-staff">${escapeHtml(r.staffName)}</div>
+        </div>
+        <span class="badge collected">Collected</span>
+      </div>
+      ${r.notes ? `<div class="req-notes">${escapeHtml(r.notes)}</div>` : ''}
+      <div class="req-time">Submitted ${fmtTime(r.createdAt)}</div>
+      <div class="req-time">Ready ${fmtTime(r.doneAt)}</div>
+      <div class="req-time">Collected by ${escapeHtml(r.collectedBy || '')} · ${fmtTime(r.collectedAt)}</div>
+      ${r.collectedNotes ? `<div class="req-notes">${escapeHtml(r.collectedNotes)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
 async function loadAll() {
   try {
-    const [pendingRes, doneRes] = await Promise.all([
+    const [pendingRes, doneRes, collectedRes] = await Promise.all([
       fetch('/api/requests?status=Pending'),
-      fetch('/api/requests?status=Done')
+      fetch('/api/requests?status=Done'),
+      fetch('/api/requests?status=Collected')
     ]);
     const pendingData = await pendingRes.json();
     const doneData = await doneRes.json();
+    const collectedData = await collectedRes.json();
     if (!pendingRes.ok) throw new Error(pendingData.error || 'Failed to load');
     if (!doneRes.ok) throw new Error(doneData.error || 'Failed to load');
+    if (!collectedRes.ok) throw new Error(collectedData.error || 'Failed to load');
 
     renderPending(pendingData.records);
     renderAwaiting(doneData.records);
+    renderCollected(collectedData.records);
     document.getElementById('refresh-note').textContent =
       'Last updated ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
   } catch (err) {
