@@ -235,7 +235,7 @@
     <div class="card">
       <form id="submit-form">
         <label for="villa">Villa Number</label>
-        <input type="number" id="villa" min="1" max="99" step="1" inputmode="numeric" autocomplete="off" required>
+        <input type="number" id="villa" min="1" max="50" step="1" inputmode="numeric" autocomplete="off" required>
 
         <label for="staffName">Staff Name</label>
         <input type="text" id="staffName" required>
@@ -267,7 +267,7 @@
   <section id="panel-track" class="panel">
     <div class="card">
       <label for="track-villa">Villa Number</label>
-      <input type="number" id="track-villa" min="1" max="99" step="1" inputmode="numeric" autocomplete="off">
+      <input type="number" id="track-villa" min="1" max="50" step="1" inputmode="numeric" autocomplete="off">
       <button class="primary" id="track-btn" style="margin-top:14px;">Look Up Requests</button>
       <div class="msg" id="track-msg"></div>
     </div>
@@ -290,7 +290,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 function isValidVilla(raw) {
   const n = Number(raw);
-  return Number.isInteger(n) && n >= 1 && n <= 99;
+  return Number.isInteger(n) && n >= 1 && n <= 50;
 }
 
 function showMsg(el, text, type) {

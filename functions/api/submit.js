@@ -1,7 +1,7 @@
 import { insertRequest } from "../_db.js";
 
 function isValidVilla(n) {
-  return Number.isInteger(n) && n >= 1 && n <= 99;
+  return Number.isInteger(n) && n >= 1 && n <= 50;
 }
 
 export async function onRequestPost({ request, env }) {

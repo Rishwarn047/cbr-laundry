@@ -139,17 +139,15 @@
     padding: 11px;
     font-size: 13px;
     font-weight: 700;
-    color: var(--muted);
+    color: var(--red);
     background: white;
-    border: 1.5px solid var(--border);
+    border: 1.5px solid var(--red);
     border-radius: 8px;
     cursor: pointer;
   }
   button.undone-btn:disabled { opacity: 0.6; }
 
   button.collect-toggle-btn {
-    width: 100%;
-    margin-top: 12px;
     padding: 11px;
     font-size: 13px;
     font-weight: 700;
@@ -176,6 +174,36 @@
   .msg.show { display: block; }
   .msg.error { background: #fee2e2; color: var(--red); }
 
+  .collected-filter {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .collected-filter svg { width: 16px; height: 16px; color: var(--muted); flex-shrink: 0; }
+  .collected-filter input {
+    border: none;
+    outline: none;
+    font-size: 14px;
+    width: 100%;
+    font-family: inherit;
+    color: var(--text);
+  }
+  .collected-group { margin-bottom: 16px; }
+  .collected-group-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin-bottom: 8px;
+    padding-left: 2px;
+  }
+
   .empty { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 0; }
   .refresh-note { text-align: center; font-size: 11px; color: var(--muted); padding: 8px 0 16px; }
 </style>
@@ -197,7 +225,13 @@
 <main>
   <section id="panel-active" class="panel active"></section>
   <section id="panel-awaiting" class="panel"></section>
-  <section id="panel-collected" class="panel"></section>
+  <section id="panel-collected" class="panel">
+    <div class="collected-filter">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="number" id="collected-villa-filter" min="1" max="50" step="1" inputmode="numeric" autocomplete="off" aria-label="Filter by villa number" placeholder="Filter by villa number">
+    </div>
+    <div id="collected-list"></div>
+  </section>
   <div class="refresh-note" id="refresh-note">Refreshing...</div>
 </main>
 
@@ -365,18 +399,18 @@ function renderAwaiting(records) {
   });
 }
 
-function renderCollected(records) {
-  const panel = document.getElementById('panel-collected');
-  document.getElementById('collected-count').textContent = records.length;
+let collectedRecordsCache = [];
 
-  if (!records.length) {
-    panel.innerHTML = '<div class="empty">No collected requests yet.</div>';
-    return;
-  }
+function collectedDateGroup(iso, boundaries) {
+  const d = new Date(iso);
+  if (d >= boundaries.startOfToday) return 'Today';
+  if (d >= boundaries.startOfYesterday) return 'Yesterday';
+  if (d >= boundaries.startOfWeek) return 'This Week';
+  return 'Past';
+}
 
-  const sorted = [...records].sort((a, b) => new Date(b.collectedAt) - new Date(a.collectedAt));
-
-  panel.innerHTML = sorted.map(r => `
+function renderCollectedItem(r) {
+  return `
     <div class="req-item">
       <div class="req-top">
         <div>
@@ -391,8 +425,54 @@ function renderCollected(records) {
       <div class="req-time">Collected by ${escapeHtml(r.collectedBy || '')} · ${fmtTime(r.collectedAt)}</div>
       ${r.collectedNotes ? `<div class="req-notes">${escapeHtml(r.collectedNotes)}</div>` : ''}
     </div>
-  `).join('');
+  `;
 }
+
+function renderCollectedList() {
+  const container = document.getElementById('collected-list');
+  const filterRaw = document.getElementById('collected-villa-filter').value.trim();
+  let records = collectedRecordsCache;
+
+  if (filterRaw) {
+    const villaNum = Number(filterRaw);
+    records = records.filter(r => r.villaNumber === villaNum);
+  }
+
+  if (!records.length) {
+    container.innerHTML = `<div class="empty">${filterRaw ? 'No collected requests for that villa.' : 'No collected requests yet.'}</div>`;
+    return;
+  }
+
+  const sorted = [...records].sort((a, b) => new Date(b.collectedAt) - new Date(a.collectedAt));
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+  const startOfWeek = new Date(startOfToday);
+  startOfWeek.setDate(startOfWeek.getDate() - startOfToday.getDay());
+  const boundaries = { startOfToday, startOfYesterday, startOfWeek };
+
+  const groups = { Today: [], Yesterday: [], 'This Week': [], Past: [] };
+  sorted.forEach(r => groups[collectedDateGroup(r.collectedAt, boundaries)].push(r));
+
+  container.innerHTML = Object.entries(groups)
+    .filter(([, list]) => list.length)
+    .map(([label, list]) => `
+      <div class="collected-group">
+        <div class="collected-group-label">${label}</div>
+        ${list.map(renderCollectedItem).join('')}
+      </div>
+    `).join('');
+}
+
+function renderCollected(records) {
+  collectedRecordsCache = records;
+  document.getElementById('collected-count').textContent = records.length;
+  renderCollectedList();
+}
+
+document.getElementById('collected-villa-filter').addEventListener('input', renderCollectedList);
 
 async function loadAll() {
   try {
