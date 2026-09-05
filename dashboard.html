@@ -114,8 +114,25 @@
   .req-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
   .req-villa { font-size: 20px; font-weight: 800; }
   .req-staff { font-size: 13px; color: var(--muted); margin-top: 2px; }
-  .req-notes { font-size: 14px; color: var(--text); margin-top: 8px; }
-  .req-time { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .req-notes {
+    font-size: 14px;
+    color: var(--text);
+    margin-top: 10px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border-left: 3px solid var(--border);
+    border-radius: 6px;
+    font-style: italic;
+  }
+  .req-time {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .req-time svg { width: 12px; height: 12px; flex-shrink: 0; opacity: 0.8; }
 
   .badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
   .badge.pending { background: var(--amber-bg); color: var(--amber); }
@@ -249,7 +266,7 @@
   <section id="panel-collected" class="panel">
     <div class="collected-filter">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="number" id="collected-villa-filter" min="1" max="50" step="1" inputmode="numeric" autocomplete="off" aria-label="Filter by villa number" placeholder="Filter by villa number">
+      <input type="number" id="collected-villa-filter" min="1" max="50" step="1" inputmode="numeric" autocomplete="off" aria-label="Filter by Villa Number" placeholder="Filter by Villa Number">
     </div>
     <div id="collected-list"></div>
   </section>
@@ -270,6 +287,10 @@ function fmtTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function timeLine(text) {
+  return `<div class="req-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>${text}</span></div>`;
 }
 
 function escapeHtml(str) {
@@ -297,7 +318,7 @@ function renderPending(records) {
         ${r.urgent ? '<span class="badge urgent">URGENT</span>' : '<span class="badge pending">Pending</span>'}
       </div>
       ${r.notes ? `<div class="req-notes">${escapeHtml(r.notes)}</div>` : ''}
-      <div class="req-time">Submitted ${fmtTime(r.createdAt)}</div>
+      ${timeLine('Submitted ' + fmtTime(r.createdAt))}
       <button class="done-btn">Mark Done</button>
     </div>
   `).join('');
@@ -341,7 +362,7 @@ function renderAwaiting(records) {
         <span class="badge done">Done</span>
       </div>
       ${r.notes ? `<div class="req-notes">${escapeHtml(r.notes)}</div>` : ''}
-      <div class="req-time">Ready since ${fmtTime(r.doneAt)}</div>
+      ${timeLine('Ready since ' + fmtTime(r.doneAt))}
       <div class="awaiting-actions">
         <button class="undone-btn">Move to Pending</button>
         <button class="collect-toggle-btn">Mark as Collected</button>
@@ -441,9 +462,9 @@ function renderCollectedItem(r) {
         <span class="badge collected">Collected</span>
       </div>
       ${r.notes ? `<div class="req-notes">${escapeHtml(r.notes)}</div>` : ''}
-      <div class="req-time">Submitted ${fmtTime(r.createdAt)}</div>
-      <div class="req-time">Ready ${fmtTime(r.doneAt)}</div>
-      <div class="req-time">Collected by ${escapeHtml(r.collectedBy || '')} · ${fmtTime(r.collectedAt)}</div>
+      ${timeLine('Submitted ' + fmtTime(r.createdAt))}
+      ${timeLine('Ready ' + fmtTime(r.doneAt))}
+      ${timeLine('Collected by ' + escapeHtml(r.collectedBy || '') + ' · ' + fmtTime(r.collectedAt))}
       ${r.collectedNotes ? `<div class="req-notes">${escapeHtml(r.collectedNotes)}</div>` : ''}
     </div>
   `;
@@ -495,7 +516,7 @@ function renderCollected(records) {
 
 document.getElementById('collected-villa-filter').addEventListener('input', renderCollectedList);
 
-async function loadAll() {
+async function loadAll({ preserveOpenForms } = {}) {
   try {
     const [pendingRes, doneRes, collectedRes] = await Promise.all([
       fetch('/api/requests?status=Pending'),
@@ -510,7 +531,8 @@ async function loadAll() {
     if (!collectedRes.ok) throw new Error(collectedData.error || 'Failed to load');
 
     renderPending(pendingData.records);
-    if (!document.querySelector('#panel-awaiting .collect-form:not([hidden])')) {
+    const formOpen = document.querySelector('#panel-awaiting .collect-form:not([hidden])');
+    if (!(preserveOpenForms && formOpen)) {
       renderAwaiting(doneData.records);
     }
     renderCollected(collectedData.records);
@@ -522,7 +544,7 @@ async function loadAll() {
 }
 
 loadAll();
-setInterval(loadAll, 15000);
+setInterval(() => loadAll({ preserveOpenForms: true }), 15000);
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
   await fetch('/api/auth/logout', { method: 'POST' });
