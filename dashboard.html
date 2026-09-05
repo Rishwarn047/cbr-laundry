@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laundry Manager Dashboard</title>
+<style>
+  :root {
+    --teal: #0f766e;
+    --amber: #b45309;
+    --amber-bg: #fef3c7;
+    --blue: #1d4ed8;
+    --blue-bg: #dbeafe;
+    --green: #15803d;
+    --green-bg: #dcfce7;
+    --red: #dc2626;
+    --border: #e2e8f0;
+    --bg: #f8fafc;
+    --text: #0f172a;
+    --muted: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--teal);
+    color: white;
+    padding: 16px;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  header p { margin: 4px 0 0; font-size: 12px; opacity: 0.9; }
+
+  .tabs {
+    display: flex;
+    background: white;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 58px;
+    z-index: 10;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 12px 8px;
+    background: none;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+  }
+  .tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); }
+  .tab-btn .count {
+    display: inline-block;
+    min-width: 18px;
+    padding: 0 5px;
+    margin-left: 4px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: var(--text);
+    font-size: 11px;
+  }
+
+  main { max-width: 480px; margin: 0 auto; padding: 12px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .req-item {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .req-item.urgent { border-color: var(--red); background: #fff5f5; }
+  .req-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .req-villa { font-size: 20px; font-weight: 800; }
+  .req-staff { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .req-notes { font-size: 14px; color: var(--text); margin-top: 8px; }
+  .req-time { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  .badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .badge.pending { background: var(--amber-bg); color: var(--amber); }
+  .badge.done { background: var(--blue-bg); color: var(--blue); }
+  .badge.collected { background: var(--green-bg); color: var(--green); }
+  .badge.urgent { background: var(--red); color: white; }
+
+  button.done-btn {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+    background: var(--teal);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button.done-btn:disabled { opacity: 0.6; }
+
+  .empty { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 0; }
+  .refresh-note { text-align: center; font-size: 11px; color: var(--muted); padding: 8px 0 16px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Laundry Manager</h1>
+  <p>CBR Laundry Service — internal dashboard</p>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="active">Active <span class="count" id="active-count">0</span></button>
+  <button class="tab-btn" data-tab="awaiting">Awaiting Collection <span class="count" id="awaiting-count">0</span></button>
+</div>
+
+<main>
+  <section id="panel-active" class="panel active"></section>
+  <section id="panel-awaiting" class="panel"></section>
+  <div class="refresh-note" id="refresh-note">Refreshing...</div>
+</main>
+
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+function renderPending(records) {
+  const panel = document.getElementById('panel-active');
+  document.getElementById('active-count').textContent = records.length;
+
+  if (!records.length) {
+    panel.innerHTML = '<div class="empty">No active requests. All caught up!</div>';
+    return;
+  }
+
+  panel.innerHTML = records.map(r => `
+    <div class="req-item ${r.urgent ? 'urgent' : ''}" data-id="${r.id}">
+      <div class="req-top">
+        <div>
+          <div class="req-villa">Villa ${r.villaNumber}</div>
+          <div class="req-staff">${escapeHtml(r.staffName)}</div>
+        </div>
+        ${r.urgent ? '<span class="badge urgent">URGENT</span>' : '<span class="badge pending">Pending</span>'}
+      </div>
+      ${r.notes ? `<div class="req-notes">${escapeHtml(r.notes)}</div>` : ''}
+      <div class="req-time">Submitted ${fmtTime(r.createdAt)}</div>
+      <button class="done-btn">Mark Done</button>
+    </div>
+  `).join('');
+
+  panel.querySelectorAll('.done-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const item = btn.closest('.req-item');
+      const id = item.dataset.id;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      try {
+        const res = await fetch(`/api/requests/${id}/done`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not update request');
+        await loadAll();
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+        btn.textContent = 'Mark Done';
+      }
+    });
+  });
+}
+
+function renderAwaiting(records) {
+  const panel = document.getElementById('panel-awaiting');
+  document.getElementById('awaiting-count').textContent = records.length;
+
+  if (!records.length) {
+    panel.innerHTML = '<div class="empty">Nothing waiting on collection.</div>';
+    return;
+  }
+
+  panel.innerHTML = records.map(r => `
+    <div class="req-item">
+      <div class="req-top">
+        <div>
+          <div class="req-villa">Villa ${r.villaNumber}</div>
+          <div class="req-staff">${escapeHtml(r.staffName)}</div>
+        </div>
+        <span class="badge done">Done</span>
+      </div>
+      ${r.notes ? `<div class="req-notes">${escapeHtml(r.notes)}</div>` : ''}
+      <div class="req-time">Ready since ${fmtTime(r.doneAt)}</div>
+    </div>
+  `).join('');
+}
+
+async function loadAll() {
+  try {
+    const [pendingRes, doneRes] = await Promise.all([
+      fetch('/api/requests?status=Pending'),
+      fetch('/api/requests?status=Done')
+    ]);
+    const pendingData = await pendingRes.json();
+    const doneData = await doneRes.json();
+    if (!pendingRes.ok) throw new Error(pendingData.error || 'Failed to load');
+    if (!doneRes.ok) throw new Error(doneData.error || 'Failed to load');
+
+    renderPending(pendingData.records);
+    renderAwaiting(doneData.records);
+    document.getElementById('refresh-note').textContent =
+      'Last updated ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+  } catch (err) {
+    document.getElementById('refresh-note').textContent = 'Could not refresh: ' + err.message;
+  }
+}
+
+loadAll();
+setInterval(loadAll, 15000);
+</script>
+
+</body>
+</html>
