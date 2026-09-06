@@ -329,6 +329,8 @@ function showMsg(el, text, type, autoHideMs) {
 const submitForm = document.getElementById('submit-form');
 const submitBtn = document.getElementById('submit-btn');
 const submitMsg = document.getElementById('submit-msg');
+const DUPLICATE_WINDOW_MS = 10000;
+let lastSubmission = null;
 
 submitForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -348,6 +350,17 @@ submitForm.addEventListener('submit', async (e) => {
     return;
   }
 
+  if (
+    lastSubmission &&
+    lastSubmission.villaNumber === Number(villaNumber) &&
+    lastSubmission.staffName === staffName &&
+    lastSubmission.notes === notes &&
+    Date.now() - lastSubmission.at < DUPLICATE_WINDOW_MS
+  ) {
+    showMsg(submitMsg, 'This looks like a duplicate of your last request. Please wait a few seconds and try again if this is a new request.', 'error');
+    return;
+  }
+
   submitBtn.disabled = true;
   submitBtn.textContent = 'Submitting...';
 
@@ -359,6 +372,8 @@ submitForm.addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Submission failed');
+
+    lastSubmission = { villaNumber: Number(villaNumber), staffName, notes, at: Date.now() };
 
     showMsg(submitMsg, 'Request submitted! We\'ll get to it shortly.', 'success', 5000);
     document.getElementById('notes').value = '';

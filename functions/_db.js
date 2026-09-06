@@ -46,6 +46,17 @@ export async function getRequest(env, id) {
   return row ? rowToRecord(row) : null;
 }
 
+export async function findRecentDuplicate(env, { villaNumber, staffName, notes, windowMs }) {
+  const cutoff = new Date(Date.now() - windowMs).toISOString();
+  const row = await env.DB.prepare(`
+    SELECT id FROM requests
+    WHERE villa_number = ? AND staff_name = ? AND COALESCE(notes, '') = COALESCE(?, '')
+      AND created_at >= ?
+    ORDER BY created_at DESC LIMIT 1
+  `).bind(villaNumber, staffName, notes || null, cutoff).first();
+  return !!row;
+}
+
 export async function insertRequest(env, data) {
   const id = crypto.randomUUID();
   await env.DB.prepare(`
