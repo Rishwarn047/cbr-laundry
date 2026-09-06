@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CBR Laundry Service</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CBR Laundry">
+<meta name="theme-color" content="#0f766e">
 <style>
   :root {
     --teal: #0f766e;
@@ -415,6 +421,9 @@ async function checkVillaSubscribed(endpoint) {
 // requestId is optional — omit it to create/refresh a standing subscription
 // via the bell icon; pass it to tie the subscription to one specific request.
 async function subscribeVilla(requestId) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    throw new Error(pushUnsupportedMessage());
+  }
   const reg = await navigator.serviceWorker.register('/service-worker.js');
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') throw new Error('Notification permission was not granted.');
@@ -458,11 +467,22 @@ async function unsubscribeVilla() {
 
 const villaNotifyBtn = document.getElementById('villa-notify-btn');
 
-async function updateVillaBellState() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    villaNotifyBtn.hidden = true;
-    return;
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+function pushUnsupportedMessage() {
+  if (isIOS() && window.navigator.standalone !== true) {
+    return 'On iPhone/iPad, notifications only work once this page is added to your Home Screen:\n\n1. Tap the Share button\n2. Tap "Add to Home Screen"\n3. Open CBR Laundry Service from the Home Screen icon and try again.';
   }
+  return 'Push notifications are not supported in this browser.';
+}
+
+// The bell always stays visible (rather than hidden when unsupported) so
+// iOS users — who need to add the page to their Home Screen first — see it
+// and get that guidance on click, instead of the button silently vanishing.
+async function updateVillaBellState() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
     const sub = await getExistingPushSubscription();
     const subscribed = sub ? await checkVillaSubscribed(sub.endpoint) : false;
@@ -475,7 +495,7 @@ async function updateVillaBellState() {
 
 villaNotifyBtn.addEventListener('click', async () => {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    alert('Push notifications are not supported in this browser.');
+    alert(pushUnsupportedMessage());
     return;
   }
 
@@ -513,14 +533,21 @@ const notifyPromptText = document.getElementById('notifyPromptText');
 const notifyBtn = document.getElementById('notifyBtn');
 let pendingRequestId = null;
 
+function showNotifyConfirmed() {
+  notifyPromptText.textContent = 'You\'ll be notified when it\'s ready.';
+  notifyBtn.hidden = true;
+  notifyPrompt.hidden = false;
+  if (notifyPrompt._hideTimer) clearTimeout(notifyPrompt._hideTimer);
+  notifyPrompt._hideTimer = setTimeout(() => { notifyPrompt.hidden = true; }, 10000);
+}
+
 notifyBtn.addEventListener('click', async () => {
   if (!pendingRequestId) return;
   notifyBtn.disabled = true;
   notifyBtn.textContent = 'Enabling...';
   try {
     await subscribeVilla(pendingRequestId);
-    notifyPromptText.textContent = 'You\'ll be notified when it\'s ready.';
-    notifyBtn.hidden = true;
+    showNotifyConfirmed();
     villaNotifyBtn.classList.add('subscribed');
     villaNotifyBtn.title = 'Notifications on — click to turn off';
   } catch (err) {
@@ -540,6 +567,7 @@ let lastSubmission = null;
 submitForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   submitMsg.className = 'msg';
+  if (notifyPrompt._hideTimer) clearTimeout(notifyPrompt._hideTimer);
   notifyPrompt.hidden = true;
 
   const villaNumber = document.getElementById('villa').value.trim();
@@ -590,22 +618,18 @@ submitForm.addEventListener('submit', async (e) => {
     document.getElementById('urgent').checked = false;
 
     pendingRequestId = data.record.id;
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        // Already opted in (via the bell) — silently point the existing
-        // subscription at this new request, no extra click needed.
-        subscribeVilla(pendingRequestId).then(() => {
-          notifyPromptText.textContent = 'You\'ll be notified when it\'s ready.';
-          notifyBtn.hidden = true;
-          notifyPrompt.hidden = false;
-        }).catch(() => { /* non-fatal — the submission itself already succeeded */ });
-      } else if (Notification.permission !== 'denied') {
-        notifyPromptText.textContent = 'Get notified when it\'s ready?';
-        notifyBtn.hidden = false;
-        notifyBtn.disabled = false;
-        notifyBtn.textContent = 'Enable Notifications';
-        notifyPrompt.hidden = false;
-      }
+    if (villaNotifyBtn.classList.contains('subscribed')) {
+      // Bell is actually on (checked server-side, not just browser permission,
+      // which stays 'granted' forever even after the bell is turned off) —
+      // silently point the existing subscription at this new request.
+      subscribeVilla(pendingRequestId).then(showNotifyConfirmed)
+        .catch(() => { /* non-fatal — the submission itself already succeeded */ });
+    } else if (typeof Notification === 'undefined' || Notification.permission !== 'denied') {
+      notifyPromptText.textContent = 'Get notified when it\'s ready?';
+      notifyBtn.hidden = false;
+      notifyBtn.disabled = false;
+      notifyBtn.textContent = 'Enable Notifications';
+      notifyPrompt.hidden = false;
     }
   } catch (err) {
     showMsg(submitMsg, err.message, 'error', err.status === 409 ? 10000 : undefined);

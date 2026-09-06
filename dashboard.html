@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Laundry Manager Dashboard</title>
+<link rel="manifest" href="/manifest-dashboard.json">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Laundry Manager">
+<meta name="theme-color" content="#0f766e">
 <style>
   :root {
     --teal: #0f766e;
@@ -275,13 +281,13 @@
 
 <header>
   <div class="header-actions">
-    <button class="logout-btn" id="logout-btn" aria-label="Log out">
-      <svg class="logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      <span class="logout-text">Log out</span>
-    </button>
     <button class="icon-btn" id="notify-btn" aria-label="Enable notifications" title="Enable notifications">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
       <span class="notify-dot"></span>
+    </button>
+    <button class="logout-btn" id="logout-btn" aria-label="Log out">
+      <svg class="logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <span class="logout-text">Log out</span>
     </button>
   </div>
   <h1>Laundry Requests Dashboard</h1>
@@ -597,6 +603,17 @@ function urlBase64ToUint8Array(base64String) {
 
 const notifyBtn = document.getElementById('notify-btn');
 
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+function pushUnsupportedMessage() {
+  if (isIOS() && window.navigator.standalone !== true) {
+    return 'On iPhone/iPad, notifications only work once this page is added to your Home Screen:\n\n1. Tap the Share button\n2. Tap "Add to Home Screen"\n3. Open the dashboard from the Home Screen icon and try again.';
+  }
+  return 'Push notifications are not supported in this browser.';
+}
+
 async function checkSubscribed(endpoint) {
   const res = await fetch('/api/push/status', {
     method: 'POST',
@@ -608,11 +625,11 @@ async function checkSubscribed(endpoint) {
   return !!data.subscribed;
 }
 
+// The bell always stays visible (rather than hidden when unsupported) so
+// iOS users — who need to add the page to their Home Screen first — see it
+// and get that guidance on click, instead of the button silently vanishing.
 async function updateNotifyBtnState() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    notifyBtn.hidden = true;
-    return;
-  }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
     const reg = await navigator.serviceWorker.getRegistration();
     const sub = reg ? await reg.pushManager.getSubscription() : null;
@@ -639,6 +656,9 @@ async function disableManagerNotifications() {
 }
 
 async function enableManagerNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    throw new Error(pushUnsupportedMessage());
+  }
   const reg = await navigator.serviceWorker.register('/service-worker.js');
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
@@ -673,7 +693,7 @@ async function enableManagerNotifications() {
 
 notifyBtn.addEventListener('click', async () => {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    alert('Push notifications are not supported in this browser.');
+    alert(pushUnsupportedMessage());
     return;
   }
 
