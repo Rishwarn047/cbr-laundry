@@ -324,6 +324,7 @@
   }
   .modal-btn-cancel { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
   .modal-btn-confirm { background: var(--teal); color: white; }
+  .modal-btn-confirm.danger { background: #dc2626; }
 </style>
 </head>
 <body>
@@ -406,7 +407,7 @@
 </div>
 
 <script>
-function showConfirmModal(title, body, confirmLabel) {
+function showConfirmModal(title, body, confirmLabel, danger) {
   return new Promise((resolve) => {
     const overlay = document.getElementById('confirmModalOverlay');
     document.getElementById('confirmModalTitle').textContent = title;
@@ -414,6 +415,7 @@ function showConfirmModal(title, body, confirmLabel) {
     const confirmBtn = document.getElementById('confirmModalConfirm');
     const cancelBtn = document.getElementById('confirmModalCancel');
     confirmBtn.textContent = confirmLabel || 'Confirm';
+    confirmBtn.classList.toggle('danger', !!danger);
 
     function cleanup(result) {
       overlay.hidden = true;
@@ -575,7 +577,8 @@ villaNotifyBtn.addEventListener('click', async () => {
     const ok = await showConfirmModal(
       'Turn Off Notifications?',
       'Do you want to turn off notifications for when your laundry is ready?',
-      'Turn Off'
+      'Turn Off',
+      true
     );
     if (!ok) return;
     villaNotifyBtn.disabled = true;
