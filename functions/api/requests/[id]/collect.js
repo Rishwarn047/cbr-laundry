@@ -1,6 +1,7 @@
 import { markCollected } from "../../../_db.js";
+import { sendToRole } from "../../../_push.js";
 
-export async function onRequestPost({ request, params, env }) {
+export async function onRequestPost({ request, params, env, waitUntil }) {
   let body;
   try {
     body = await request.json();
@@ -18,5 +19,12 @@ export async function onRequestPost({ request, params, env }) {
   const { record, error } = await markCollected(env, params.id, { collectedBy, collectedNotes });
   if (error === "not_found") return Response.json({ error: "Request not found" }, { status: 404 });
   if (error === "invalid_state") return Response.json({ error: "Request is not marked Done yet" }, { status: 409 });
+
+  waitUntil(sendToRole(env, "manager", {
+    title: "Laundry Collected",
+    body: `Villa ${record.villaNumber} collected by ${collectedBy}`,
+    url: "/dashboard.html"
+  }).catch(() => {}));
+
   return Response.json({ record });
 }

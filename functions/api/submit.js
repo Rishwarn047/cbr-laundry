@@ -1,4 +1,5 @@
 import { insertRequest, findRecentDuplicate } from "../_db.js";
+import { sendToRole } from "../_push.js";
 
 const DUPLICATE_WINDOW_MS = 10000;
 
@@ -6,7 +7,7 @@ function isValidVilla(n) {
   return Number.isInteger(n) && n >= 1 && n <= 50;
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   let body;
   try {
     body = await request.json();
@@ -37,5 +38,12 @@ export async function onRequestPost({ request, env }) {
   }
 
   const record = await insertRequest(env, { villaNumber, staffName, notes, urgent });
+
+  waitUntil(sendToRole(env, "manager", {
+    title: urgent ? "Urgent Laundry Request" : "New Laundry Request",
+    body: `Villa ${villaNumber} — ${staffName}`,
+    url: "/dashboard.html"
+  }).catch(() => {}));
+
   return Response.json({ record }, { status: 201 });
 }

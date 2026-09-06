@@ -19,6 +19,9 @@ Functions + D1, no build step, no Node.js required locally.
   open with no login.
 - `functions/api/` — Cloudflare Pages Functions backed by D1 (`requests`
   table).
+- `service-worker.js` / `functions/_push.js` / `functions/api/push/` — Web
+  Push notifications (see below): villas are notified when their laundry is
+  ready, managers are notified on new requests and on collections.
 
 Status flow: `Pending → Done → Collected`.
 
@@ -79,6 +82,30 @@ Add these under **Pages project → Settings → Variables and secrets**, for
   session cookie.
 
 Redeploy after adding these (env vars only apply to the next deployment).
+
+### 6. Configure push notifications
+
+Generate a VAPID key pair once (any machine with a browser console works):
+
+```js
+const kp = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+const pub = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey));
+const jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
+const b64url = (b) => btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+console.log("VAPID_PUBLIC_KEY:", b64url(pub));
+console.log("VAPID_PRIVATE_KEY:", jwk.d);
+```
+
+Add under **Pages project → Settings → Variables and secrets**, for **both
+Production and Preview**:
+
+- `VAPID_PUBLIC_KEY` (Text) — from the snippet above.
+- `VAPID_PRIVATE_KEY` (Secret) — from the snippet above.
+- `VAPID_SUBJECT` (Text) — a contact URI required by the Web Push spec, e.g.
+  `mailto:you@example.com`.
+
+Redeploy after adding these. Without them, `/api/push/*` returns a "not
+configured" error and the notify buttons in the UI will fail silently.
 
 ## Using it
 

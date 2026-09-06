@@ -18,3 +18,16 @@ CREATE TABLE IF NOT EXISTS requests (
 
 CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);
 CREATE INDEX IF NOT EXISTS idx_requests_villa ON requests(villa_number);
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id TEXT PRIMARY KEY,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  role TEXT NOT NULL,          -- 'villa' | 'manager'
+  request_id TEXT,             -- set when role = 'villa': the request this subscription is waiting on
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_role ON push_subscriptions(role);
+CREATE INDEX IF NOT EXISTS idx_push_request ON push_subscriptions(request_id);

@@ -186,6 +186,21 @@
   .msg.success { background: var(--green-bg); color: var(--green); }
   .msg.error { background: #fee2e2; color: var(--red); }
 
+  .notify-prompt {
+    margin-top: 12px;
+    padding: 12px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .notify-prompt span { font-size: 13px; color: var(--teal-dark); font-weight: 600; }
+  .notify-prompt button { width: auto; margin-top: 0; padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+
   .req-item {
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -276,6 +291,10 @@
 
         <button type="submit" class="primary" id="submit-btn">Submit Request</button>
         <div class="msg" id="submit-msg"></div>
+        <div class="notify-prompt" id="notifyPrompt" hidden>
+          <span id="notifyPromptText">Get notified when it's ready?</span>
+          <button type="button" class="secondary" id="notifyBtn">Enable Notifications</button>
+        </div>
       </form>
     </div>
   </section>
@@ -325,6 +344,66 @@ function showMsg(el, text, type, autoHideMs) {
   }
 }
 
+// Push notifications (villa side — notified when a specific request is marked Done)
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const output = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) output[i] = raw.charCodeAt(i);
+  return output;
+}
+
+async function subscribeForRequest(requestId) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+  try {
+    const reg = await navigator.serviceWorker.register('/service-worker.js');
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return false;
+
+    const keyRes = await fetch('/api/push/public-key');
+    const keyData = await keyRes.json();
+    if (!keyRes.ok) return false;
+
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(keyData.publicKey)
+      });
+    }
+
+    const res = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON(), role: 'villa', requestId })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+const notifyPrompt = document.getElementById('notifyPrompt');
+const notifyPromptText = document.getElementById('notifyPromptText');
+const notifyBtn = document.getElementById('notifyBtn');
+let pendingRequestId = null;
+
+notifyBtn.addEventListener('click', async () => {
+  if (!pendingRequestId) return;
+  notifyBtn.disabled = true;
+  notifyBtn.textContent = 'Enabling...';
+  const ok = await subscribeForRequest(pendingRequestId);
+  if (ok) {
+    notifyPromptText.textContent = 'You\'ll be notified when it\'s ready.';
+    notifyBtn.hidden = true;
+  } else {
+    notifyBtn.disabled = false;
+    notifyBtn.textContent = 'Enable Notifications';
+    showMsg(submitMsg, 'Could not enable notifications. Check your browser\'s notification permissions.', 'error', 6000);
+  }
+});
+
 // Submit form
 const submitForm = document.getElementById('submit-form');
 const submitBtn = document.getElementById('submit-btn');
@@ -335,6 +414,7 @@ let lastSubmission = null;
 submitForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   submitMsg.className = 'msg';
+  notifyPrompt.hidden = true;
 
   const villaNumber = document.getElementById('villa').value.trim();
   const staffName = document.getElementById('staffName').value.trim();
@@ -382,6 +462,15 @@ submitForm.addEventListener('submit', async (e) => {
     showMsg(submitMsg, 'Request submitted! We\'ll get to it shortly.', 'success', 5000);
     document.getElementById('notes').value = '';
     document.getElementById('urgent').checked = false;
+
+    pendingRequestId = data.record.id;
+    if ('serviceWorker' in navigator && 'PushManager' in window && Notification.permission !== 'denied') {
+      notifyPromptText.textContent = 'Get notified when it\'s ready?';
+      notifyBtn.hidden = false;
+      notifyBtn.disabled = false;
+      notifyBtn.textContent = 'Enable Notifications';
+      notifyPrompt.hidden = false;
+    }
   } catch (err) {
     showMsg(submitMsg, err.message, 'error', err.status === 409 ? 10000 : undefined);
   } finally {
