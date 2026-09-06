@@ -328,9 +328,6 @@
     <span class="notify-dot"></span>
   </button>
   <div class="header-actions">
-    <button class="logout-btn" id="refresh-all-btn" aria-label="Refresh dashboard on all devices" title="Refresh dashboard on all devices">
-      <svg class="logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-    </button>
     <button class="logout-btn" id="logout-btn" aria-label="Log out">
       <svg class="logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       <span class="logout-text">Log out</span>
@@ -818,37 +815,6 @@ notifyBtn.addEventListener('click', async () => {
 });
 
 updateNotifyBtnState();
-
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'RELOAD') {
-      location.reload();
-    }
-  });
-}
-
-document.getElementById('refresh-all-btn').addEventListener('click', async function () {
-  const btn = this;
-  const ok = await showConfirmModal(
-    'Refresh All Devices?',
-    'This reloads the dashboard on every device that currently has notifications enabled. Anyone mid-edit (e.g. filling in a collection form) will lose unsaved input.',
-    'Refresh All',
-    true
-  );
-  if (!ok) return;
-  btn.disabled = true;
-  try {
-    const res = await fetch('/api/push/force-reload', { method: 'POST' });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Could not refresh devices');
-    }
-    location.reload();
-  } catch (err) {
-    alert(err.message || 'Could not refresh devices.');
-    btn.disabled = false;
-  }
-});
 </script>
 
 </body>
