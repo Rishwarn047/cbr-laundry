@@ -310,9 +310,19 @@ function isValidVilla(raw) {
   return Number.isInteger(n) && n >= 1 && n <= 50;
 }
 
-function showMsg(el, text, type) {
+function showMsg(el, text, type, autoHideMs) {
   el.textContent = text;
   el.className = 'msg show ' + type;
+  if (el._hideTimer) {
+    clearTimeout(el._hideTimer);
+    el._hideTimer = null;
+  }
+  if (autoHideMs) {
+    el._hideTimer = setTimeout(() => {
+      el.className = 'msg';
+      el.textContent = '';
+    }, autoHideMs);
+  }
 }
 
 // Submit form
@@ -350,7 +360,7 @@ submitForm.addEventListener('submit', async (e) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Submission failed');
 
-    showMsg(submitMsg, 'Request submitted! We\'ll get to it shortly.', 'success');
+    showMsg(submitMsg, 'Request submitted! We\'ll get to it shortly.', 'success', 5000);
     document.getElementById('notes').value = '';
     document.getElementById('urgent').checked = false;
   } catch (err) {
