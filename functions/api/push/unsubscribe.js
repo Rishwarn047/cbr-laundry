@@ -10,6 +10,14 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ error: "endpoint is required" }, { status: 400 });
   }
 
-  await env.DB.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).bind(body.endpoint).run();
+  // If a role is given, only that role's subscription is removed — the same
+  // device may still hold a subscription for the other role.
+  if (typeof body.role === "string") {
+    await env.DB.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ? AND role = ?`)
+      .bind(body.endpoint, body.role).run();
+  } else {
+    await env.DB.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).bind(body.endpoint).run();
+  }
+
   return Response.json({ ok: true });
 }

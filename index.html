@@ -32,9 +32,45 @@
     color: white;
     padding: 18px 16px 14px;
     text-align: center;
+    position: relative;
   }
   header h1 { margin: 0; font-size: 20px; font-weight: 700; }
   header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
+
+  .icon-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(255,255,255,0.15);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 6px;
+    padding: 7px 9px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .icon-btn[hidden] { display: none; }
+  .icon-btn.subscribed {
+    background: white;
+    color: var(--teal);
+    border-color: white;
+  }
+  .icon-btn:disabled { opacity: 0.6; cursor: default; }
+  .notify-dot {
+    display: none;
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #22c55e;
+    border: 1.5px solid var(--teal);
+  }
+  .icon-btn.subscribed .notify-dot { display: block; }
 
   .tabs {
     display: flex;
@@ -253,6 +289,10 @@
 <body>
 
 <header>
+  <button class="icon-btn" id="villa-notify-btn" aria-label="Enable notifications" title="Enable notifications">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span class="notify-dot"></span>
+  </button>
   <h1>CBR Laundry Service</h1>
   <p>Villa Laundry Request &amp; Collection</p>
 </header>
@@ -345,7 +385,7 @@ function showMsg(el, text, type, autoHideMs) {
   }
 }
 
-// Push notifications (villa side — notified when a specific request is marked Done)
+// Push notifications (villa side — notified when a request is marked Done)
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -355,35 +395,118 @@ function urlBase64ToUint8Array(base64String) {
   return output;
 }
 
-async function subscribeForRequest(requestId) {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
-  try {
-    const reg = await navigator.serviceWorker.register('/service-worker.js');
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return false;
+async function getExistingPushSubscription() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return reg ? await reg.pushManager.getSubscription() : null;
+}
 
-    const keyRes = await fetch('/api/push/public-key');
-    const keyData = await keyRes.json();
-    if (!keyRes.ok) return false;
+async function checkVillaSubscribed(endpoint) {
+  const res = await fetch('/api/push/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint, role: 'villa' })
+  });
+  if (!res.ok) return false;
+  const data = await res.json();
+  return !!data.subscribed;
+}
 
-    let sub = await reg.pushManager.getSubscription();
-    if (!sub) {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(keyData.publicKey)
-      });
-    }
+// requestId is optional — omit it to create/refresh a standing subscription
+// via the bell icon; pass it to tie the subscription to one specific request.
+async function subscribeVilla(requestId) {
+  const reg = await navigator.serviceWorker.register('/service-worker.js');
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') throw new Error('Notification permission was not granted.');
 
-    const res = await fetch('/api/push/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscription: sub.toJSON(), role: 'villa', requestId })
+  const keyRes = await fetch('/api/push/public-key');
+  const keyData = await keyRes.json();
+  if (!keyRes.ok) throw new Error(keyData.error || 'Push notifications are not configured');
+
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(keyData.publicKey)
     });
-    return res.ok;
-  } catch {
-    return false;
+  }
+
+  const body = { subscription: sub.toJSON(), role: 'villa' };
+  if (requestId) body.requestId = requestId;
+
+  const res = await fetch('/api/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Could not subscribe');
   }
 }
+
+async function unsubscribeVilla() {
+  const sub = await getExistingPushSubscription();
+  if (sub) {
+    await fetch('/api/push/unsubscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint, role: 'villa' })
+    });
+  }
+}
+
+const villaNotifyBtn = document.getElementById('villa-notify-btn');
+
+async function updateVillaBellState() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    villaNotifyBtn.hidden = true;
+    return;
+  }
+  try {
+    const sub = await getExistingPushSubscription();
+    const subscribed = sub ? await checkVillaSubscribed(sub.endpoint) : false;
+    villaNotifyBtn.classList.toggle('subscribed', subscribed);
+    villaNotifyBtn.title = subscribed ? 'Notifications on — click to turn off' : 'Enable notifications';
+  } catch {
+    // ignore — leave button in default state
+  }
+}
+
+villaNotifyBtn.addEventListener('click', async () => {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    alert('Push notifications are not supported in this browser.');
+    return;
+  }
+
+  if (villaNotifyBtn.classList.contains('subscribed')) {
+    if (!confirm('Turn off notifications for your laundry requests?')) return;
+    villaNotifyBtn.disabled = true;
+    try {
+      await unsubscribeVilla();
+      villaNotifyBtn.classList.remove('subscribed');
+      villaNotifyBtn.title = 'Enable notifications';
+    } catch (err) {
+      alert(err.message || 'Could not turn off notifications.');
+    } finally {
+      villaNotifyBtn.disabled = false;
+    }
+    return;
+  }
+
+  villaNotifyBtn.disabled = true;
+  try {
+    await subscribeVilla(null);
+    villaNotifyBtn.classList.add('subscribed');
+    villaNotifyBtn.title = 'Notifications on — click to turn off';
+  } catch (err) {
+    alert(err.message || 'Could not enable notifications.');
+  } finally {
+    villaNotifyBtn.disabled = false;
+  }
+});
+
+updateVillaBellState();
 
 const notifyPrompt = document.getElementById('notifyPrompt');
 const notifyPromptText = document.getElementById('notifyPromptText');
@@ -394,14 +517,16 @@ notifyBtn.addEventListener('click', async () => {
   if (!pendingRequestId) return;
   notifyBtn.disabled = true;
   notifyBtn.textContent = 'Enabling...';
-  const ok = await subscribeForRequest(pendingRequestId);
-  if (ok) {
+  try {
+    await subscribeVilla(pendingRequestId);
     notifyPromptText.textContent = 'You\'ll be notified when it\'s ready.';
     notifyBtn.hidden = true;
-  } else {
+    villaNotifyBtn.classList.add('subscribed');
+    villaNotifyBtn.title = 'Notifications on — click to turn off';
+  } catch (err) {
     notifyBtn.disabled = false;
     notifyBtn.textContent = 'Enable Notifications';
-    showMsg(submitMsg, 'Could not enable notifications. Check your browser\'s notification permissions.', 'error', 6000);
+    showMsg(submitMsg, err.message || 'Could not enable notifications. Check your browser\'s notification permissions.', 'error', 6000);
   }
 });
 
@@ -465,12 +590,22 @@ submitForm.addEventListener('submit', async (e) => {
     document.getElementById('urgent').checked = false;
 
     pendingRequestId = data.record.id;
-    if ('serviceWorker' in navigator && 'PushManager' in window && Notification.permission !== 'denied') {
-      notifyPromptText.textContent = 'Get notified when it\'s ready?';
-      notifyBtn.hidden = false;
-      notifyBtn.disabled = false;
-      notifyBtn.textContent = 'Enable Notifications';
-      notifyPrompt.hidden = false;
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        // Already opted in (via the bell) — silently point the existing
+        // subscription at this new request, no extra click needed.
+        subscribeVilla(pendingRequestId).then(() => {
+          notifyPromptText.textContent = 'You\'ll be notified when it\'s ready.';
+          notifyBtn.hidden = true;
+          notifyPrompt.hidden = false;
+        }).catch(() => { /* non-fatal — the submission itself already succeeded */ });
+      } else if (Notification.permission !== 'denied') {
+        notifyPromptText.textContent = 'Get notified when it\'s ready?';
+        notifyBtn.hidden = false;
+        notifyBtn.disabled = false;
+        notifyBtn.textContent = 'Enable Notifications';
+        notifyPrompt.hidden = false;
+      }
     }
   } catch (err) {
     showMsg(submitMsg, err.message, 'error', err.status === 409 ? 10000 : undefined);

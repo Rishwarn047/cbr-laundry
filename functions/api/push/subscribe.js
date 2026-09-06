@@ -21,9 +21,6 @@ export async function onRequestPost({ request, env }) {
   if (role !== "villa" && role !== "manager") {
     return Response.json({ error: "Invalid role" }, { status: 400 });
   }
-  if (role === "villa" && typeof requestId !== "string") {
-    return Response.json({ error: "requestId is required for villa subscriptions" }, { status: 400 });
-  }
 
   // Manager subscriptions receive business data (new requests, collections) — require a session.
   if (role === "manager") {
@@ -33,14 +30,16 @@ export async function onRequestPost({ request, env }) {
     }
   }
 
+  // A single device can hold both a villa and a manager subscription at once
+  // (e.g. staff testing both roles on one phone) — keyed by (endpoint, role)
+  // so subscribing as one role never overwrites the other.
   const id = crypto.randomUUID();
   await env.DB.prepare(`
     INSERT INTO push_subscriptions (id, endpoint, p256dh, auth, role, request_id, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(endpoint) DO UPDATE SET
+    ON CONFLICT(endpoint, role) DO UPDATE SET
       p256dh = excluded.p256dh,
       auth = excluded.auth,
-      role = excluded.role,
       request_id = excluded.request_id,
       created_at = excluded.created_at
   `).bind(
@@ -49,7 +48,7 @@ export async function onRequestPost({ request, env }) {
     subscription.keys.p256dh,
     subscription.keys.auth,
     role,
-    role === "villa" ? requestId : null,
+    role === "villa" && typeof requestId === "string" ? requestId : null,
     new Date().toISOString()
   ).run();
 
