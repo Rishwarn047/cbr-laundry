@@ -357,7 +357,7 @@ submitForm.addEventListener('submit', async (e) => {
     lastSubmission.notes === notes &&
     Date.now() - lastSubmission.at < DUPLICATE_WINDOW_MS
   ) {
-    showMsg(submitMsg, 'This looks like a duplicate of your last request. Please wait a few seconds and try again if this is a new request.', 'error');
+    showMsg(submitMsg, 'This looks like a duplicate of your last request. Please wait a few seconds and try again if this is a new request.', 'error', 10000);
     return;
   }
 
@@ -371,7 +371,11 @@ submitForm.addEventListener('submit', async (e) => {
       body: JSON.stringify({ villaNumber: Number(villaNumber), staffName, notes, urgent })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Submission failed');
+    if (!res.ok) {
+      const err = new Error(data.error || 'Submission failed');
+      err.status = res.status;
+      throw err;
+    }
 
     lastSubmission = { villaNumber: Number(villaNumber), staffName, notes, at: Date.now() };
 
@@ -379,7 +383,7 @@ submitForm.addEventListener('submit', async (e) => {
     document.getElementById('notes').value = '';
     document.getElementById('urgent').checked = false;
   } catch (err) {
-    showMsg(submitMsg, err.message, 'error');
+    showMsg(submitMsg, err.message, 'error', err.status === 409 ? 10000 : undefined);
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = 'Submit Request';
