@@ -6,6 +6,20 @@ self.addEventListener("push", (event) => {
     data = {};
   }
 
+  if (data.type === "reload") {
+    event.waitUntil(
+      clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+        windowClients.forEach((client) => {
+          const path = new URL(client.url).pathname;
+          if (path === "/dashboard.html" || path === "/dashboard") {
+            client.postMessage({ type: "RELOAD" });
+          }
+        });
+      })
+    );
+    return;
+  }
+
   const title = data.title || "CBR Laundry Service";
   const options = {
     body: data.body || "",
