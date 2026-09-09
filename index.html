@@ -701,6 +701,8 @@ submitForm.addEventListener('submit', async (e) => {
     lastSubmission = { villaNumber: Number(villaNumber), staffName, notes, at: Date.now() };
 
     showMsg(submitMsg, 'Request submitted! We\'ll get to it shortly.', 'success', 5000);
+    document.getElementById('villa').value = '';
+    document.getElementById('staffName').value = '';
     document.getElementById('notes').value = '';
     document.getElementById('urgent').checked = false;
 
