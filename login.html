@@ -4,6 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sign in · CBR Laundry Service</title>
+<meta property="og:image" content="https://cbr-laundry.pages.dev/icon-512.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cbr-laundry.pages.dev/icon-512.png">
 <style>
   :root {
     --teal: #0f766e;
@@ -34,11 +37,11 @@
     box-shadow: 0 24px 60px -20px var(--shadow);
   }
   .mark {
-    width: 56px; height: 56px; margin: 0 auto 12px;
+    width: 96px; height: 96px; margin: 0 auto 12px;
     display: flex; align-items: center; justify-content: center;
     color: var(--teal);
   }
-  .mark svg { width: 48px; height: 48px; }
+  .mark img { width: 96px; height: 96px; object-fit: contain; }
   .card h1 { font-size: 21px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.01em; }
   .card .sub { color: var(--text-secondary); font-size: 14px; margin-bottom: 28px; line-height: 1.5; }
   #gsiButton { display: flex; justify-content: center; min-height: 48px; }
@@ -82,7 +85,7 @@
 <body>
   <div class="card">
     <div class="mark">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M6 7v13a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7M9 3h6l1 4H8l1-4Z"/><circle cx="12" cy="14" r="3.2"/></svg>
+      <img src="/icon-512.png" alt="CBR Laundry">
     </div>
     <h1>Laundry Manager</h1>
     <div class="sub">Sign in with your Google account to manage laundry requests.</div>
